@@ -5,12 +5,28 @@ import cv2
 import dlib
 import numpy
 
+DEBUG = False
 EAR_THRESHOLD = 0.25
-MAX_FRAMES = 30
+YAWN_THRESHOLD = 30
+MAX_FRAMES = 20
 
 
 def play_alarm(path="beep.wav"):
     os.system('vlc --play-and-exit ' + path)
+
+
+def yawn_test(face_mask):
+    lower_lip = face_mask[65:68]
+    upper_lip = face_mask[61:64]
+    if DEBUG:
+        for x, y in lower_lip:
+            cv2.circle(frame, (x, y), 1, (0, 0, 255), 3)
+        for x, y in upper_lip:
+            cv2.circle(frame, (x, y), 1, (0, 0, 255), 3)
+    agg = 0
+    for l, u in zip(reversed(lower_lip), upper_lip):
+        agg += numpy.linalg.norm(u - l)
+    return agg > YAWN_THRESHOLD
 
 
 def eye_test(face_mask: numpy.array) -> bool:
@@ -35,11 +51,13 @@ def eye_test(face_mask: numpy.array) -> bool:
 
     left_eye, right_eye = face_mask[36:42], face_mask[42:48]
 
-    # cv2.drawContours(frame, [cv2.convexHull(left_eye)], -1, (0, 255, 0), 1)
-    # cv2.drawContours(frame, [cv2.convexHull(right_eye)], -1, (0, 255, 0), 1)
+    if DEBUG:
+        cv2.drawContours(frame, [cv2.convexHull(left_eye)], -1, (0, 255, 0), 1)
+        cv2.drawContours(frame, [cv2.convexHull(right_eye)], -1, (0, 255, 0), 1)
 
     ear = (ear(left_eye) + ear(right_eye)) / 2
-    # cv2.putText(frame, "EAR:" + str(EAR), (10, 13), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
+    if DEBUG:
+        cv2.putText(frame, "EAR:" + str(EAR), (10, 13), cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255), 2)
     return ear < EAR_THRESHOLD
 
 
@@ -72,7 +90,7 @@ if __name__ == '__main__':
             faceMask = numpy.array([(faceMask.part(x).x, faceMask.part(x).y) for x in range(68)])
 
             # If test passes consecutively MAX_FRAMES times, trigger alarm
-            if eye_test(faceMask):
+            if eye_test(faceMask) or yawn_test(faceMask):
                 frame_count += 1
                 if frame_count >= MAX_FRAMES:
                     # New thread to trigger alarm
